@@ -31,10 +31,6 @@
         "system": false,
         "description": "Boot process waits until boot device (`/dev/synoboot`) and PCIe Device are available"
     },
-    "codecpatch": {
-        "system": false,
-        "description": "Enables transcoding for DSM - Force download AAC + HEVC Codec (Don't use with amepatch)"
-    },
     "cpufreqscaling": {
         "system": false,
         "description": "Enable CPU Freqscaling for DSM - Modify in Arc DSM Options"
@@ -87,6 +83,10 @@
         "system": false,
         "description": "A tool for working with some LSI RAID controllers"
     },
+    "mailplus": {
+        "system": false,
+        "description": "Dynamic License Patch for MailPlus-Server 3.3.0"
+    },
     "misc": {
         "system": true,
         "description": "Miscellaneous functions"
@@ -105,7 +105,7 @@
     },
     "nvmesystem": {
         "system": false,
-        "description": "Enable DSM installation to NVMe M.2 SSDs. (Only use if you have only NVMe M.2 SSDs installed)"
+        "description": "Enable DSM installation to NVMe M.2 SSDs. (If only NVMe M.2 SSDs installed)"
     },
     "nvmevolume": {
         "system": false,
@@ -115,17 +115,9 @@
         "system": false,
         "description": "Disable some DSM logs and help with Disk hibernation"
     },
-    "photosfacepatch": {
-        "system": false,
-        "description": "Face Detection Patch for Syno Photos (Best with iGPU)"
-    },
     "powersched": {
         "system": false,
         "description": "Utility to configure RTC according to DSM power schedule (If supported)"
-    },
-    "reboottoloader": {
-        "system": false,
-        "description": "Add ability to reboot to Loader from Inside DSM"
     },
     "redpill": {
         "system": true,
@@ -159,13 +151,17 @@
         "system": false,
         "description": "Sort network interface names: sorted by busid"
     },
-    "sspatch": {
-        "system": false,
-        "description": "Dynamic License Patch for SS 9.2.x (Not for DVA 3219) / 9.2.0=stable / 9.2.1/2=beta"
-    },
     "storagepanel": {
         "system": false,
         "description": "Automated Storagepanel selection - Modify in Arc DSM Options"
+    },
+    "surveillance": {
+        "system": false,
+        "description": "Dynamic License Patch for Surveillance 9.2.0 / 9.2.3 (Not for DVA 3219)"
+    },
+    "universal": {
+        "system": false,
+        "description": "Fix bugs in Synology Photos, local_display, and other apps."
     },
     "updatenotify": {
         "system": false,
