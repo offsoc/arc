@@ -7,7 +7,7 @@ function updateLoader() {
   if [ "${TAG}" != "zip" ]; then
     if [ -z "${TAG}" ]; then
       idx=0
-      while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+      while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
         TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc/releases" | jq -r ".[].tag_name" | grep -v "dev" | sort -rV | head -1)"
         if [ -n "${TAG}" ]; then
           break
@@ -21,7 +21,7 @@ function updateLoader() {
       export TAG="${TAG}"
       {
         {
-          curl -kL "${URL}" -o ${TMP_PATH}/update.zip 2>&3 3>&-
+          curl -kL "${URL}" -o "${TMP_PATH}/update.zip" 2>&3 3>&-
         } 3>&1 >&4 4>&- |
         perl -C -lane '
           BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -103,7 +103,7 @@ function updateLoader() {
 function updateAddons() {
   [ -f "${ADDONS_PATH}/VERSION" ] && local ADDONSVERSION="$(cat "${ADDONS_PATH}/VERSION")" || ADDONSVERSION="0.0.0"
   idx=0
-  while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+  while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
     local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-addons/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
     if [ -n "${TAG}" ]; then
       break
@@ -111,12 +111,12 @@ function updateAddons() {
     sleep 3
     idx=$((${idx} + 1))
   done
-  if [ -n "${TAG}" ] && [ "${ADDONSVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     export URL="https://github.com/AuxXxilium/arc-addons/releases/download/${TAG}/addons-${TAG}.zip"
     export TAG="${TAG}"
     {
       {
-      curl -kL "${URL}" -o ${TMP_PATH}/addons.zip 2>&3 3>&-
+      curl -kL "${URL}" -o "${TMP_PATH}/addons.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
       BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -163,7 +163,7 @@ function updateAddons() {
 function updatePatches() {
   [ -f "${PATCH_PATH}/VERSION" ] && local PATCHESVERSION="$(cat "${PATCH_PATH}/VERSION")" || PATCHESVERSION="0.0.0"
   idx=0
-  while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+  while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
     local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-patches/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
     if [ -n "${TAG}" ]; then
       break
@@ -171,12 +171,12 @@ function updatePatches() {
     sleep 3
     idx=$((${idx} + 1))
   done
-  if [ -n "${TAG}" ] && [ "${PATCHESVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     export URL="https://github.com/AuxXxilium/arc-patches/releases/download/${TAG}/patches-${TAG}.zip"
     export TAG="${TAG}"
     {
       {
-        curl -kL "${URL}" -o ${TMP_PATH}/patches.zip 2>&3 3>&-
+        curl -kL "${URL}" -o "${TMP_PATH}/patches.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
         BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -216,7 +216,7 @@ function updatePatches() {
 function updateCustom() {
   [ -f "${CUSTOM_PATH}/VERSION" ] && local CUSTOMVERSION="$(cat "${CUSTOM_PATH}/VERSION")" || CUSTOMVERSION="0.0.0"
   idx=0
-  while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+  while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
     local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-custom/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
     if [ -n "${TAG}" ]; then
       break
@@ -224,12 +224,12 @@ function updateCustom() {
     sleep 3
     idx=$((${idx} + 1))
   done
-  if [ -n "${TAG}" ] && [ "${CUSTOMVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     export URL="https://github.com/AuxXxilium/arc-custom/releases/download/${TAG}/custom-${TAG}.zip"
     export TAG="${TAG}"
     {
       {
-        curl -kL "${URL}" -o ${TMP_PATH}/custom.zip 2>&3 3>&-
+        curl -kL "${URL}" -o "${TMP_PATH}/custom.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
         BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -273,7 +273,7 @@ function updateModules() {
   local KVER="$(readConfigKey "platforms.${PLATFORM}.productvers.\"${PRODUCTVER}\".kver" "${P_FILE}")"
   is_in_array "${PLATFORM}" "${KVER5L[@]}" && KVERP="${PRODUCTVER}-${KVER}" || KVERP="${KVER}"
   idx=0
-  while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+  while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
     local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-modules/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
     if [ -n "${TAG}" ]; then
       break
@@ -281,14 +281,14 @@ function updateModules() {
     sleep 3
     idx=$((${idx} + 1))
   done
-  if [ -n "${TAG}" ] && [ "${MODULESVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     rm -rf "${MODULES_PATH}"
     mkdir -p "${MODULES_PATH}"
     export URL="https://github.com/AuxXxilium/arc-modules/releases/download/${TAG}/modules-${TAG}.zip"
     export TAG="${TAG}"
     {
       {
-        curl -kL "${URL}" -o ${TMP_PATH}/modules.zip 2>&3 3>&-
+        curl -kL "${URL}" -o "${TMP_PATH}/modules.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
         BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -340,7 +340,7 @@ function updateConfigs() {
   local USERID="$(readConfigKey "arc.userid" "${USER_CONFIG_FILE}")"
   if [ -z "${1}" ]; then
     idx=0
-    while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+    while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
       local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-configs/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
       if [ -n "${TAG}" ]; then
         break
@@ -351,12 +351,12 @@ function updateConfigs() {
   else
     local TAG="${1}"
   fi
-  if [ -n "${TAG}" ] && [ "${CONFIGSVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     export URL="https://github.com/AuxXxilium/arc-configs/releases/download/${TAG}/configs-${TAG}.zip"
     export TAG="${TAG}"
     {
       {
-        curl -kL "${URL}" -o ${TMP_PATH}/configs.zip 2>&3 3>&-
+        curl -kL "${URL}" -o "${TMP_PATH}/configs.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
         BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -397,7 +397,7 @@ function updateLKMs() {
   [ -f "${LKMS_PATH}/VERSION" ] && local LKMVERSION="$(cat "${LKMS_PATH}/VERSION")" || LKMVERSION="0.0.0"
   if [ -z "${1}" ]; then
     idx=0
-    while [ ${idx} -le 5 ]; do # Loop 5 times, if successful, break
+    while [ "${idx}" -le 5 ]; do # Loop 5 times, if successful, break
       local TAG="$(curl -m 10 -skL "https://api.github.com/repos/AuxXxilium/arc-lkm/releases" | jq -r ".[].tag_name" | sort -rV | head -1)"
       if [ -n "${TAG}" ]; then
         break
@@ -408,12 +408,12 @@ function updateLKMs() {
   else
     local TAG="${1}"
   fi
-  if [ -n "${TAG}" ] && [ "${LKMVERSION}" != "${TAG}" ]; then
+  if [ -n "${TAG}" ]; then
     export URL="https://github.com/AuxXxilium/arc-lkm/releases/download/${TAG}/rp-lkms.zip"
     export TAG="${TAG}"
     {
       {
-        curl -kL "${URL}" -o ${TMP_PATH}/rp-lkms.zip 2>&3 3>&-
+        curl -kL "${URL}" -o "${TMP_PATH}/rp-lkms.zip" 2>&3 3>&-
       } 3>&1 >&4 4>&- |
       perl -C -lane '
         BEGIN {$header = "Downloading $ENV{URL}...\n\n"; $| = 1}
@@ -465,26 +465,34 @@ function updateOffline() {
   return 0
 }
 
-###############################################################################
-# Loading Update Mode
 function dependenciesUpdate() {
-  dialog --backtitle "$(backtitle)" --title "Update Dependencies" --aspect 18 \
-    --infobox "Updating Dependencies..." 3 40
-  sleep 2
+  # Display a selection box for the user to choose updates
+  CHOICES=$(dialog --backtitle "$(backtitle)" --title "Select Dependencies to Update" \
+    --checklist "Use SPACE to select and ENTER to confirm:" 15 50 6 \
+    "updateAddons" "Update Addons" off \
+    "updateModules" "Update Modules" off \
+    "updateCustom" "Update Custom Kernel" off \
+    "updatePatches" "Update Patches" off \
+    "updateLKMs" "Update LKMs" off \
+    "updateOffline" "Update Offline Data" off 3>&1 1>&2 2>&3)
 
-  FAILED="false"
-  for updateFunction in updateAddons updateModules updateCustom updatePatches updateLKMs updateOffline; do
-    $updateFunction || FAILED="true"
+  # Exit if the user cancels the selection
+  [ $? -ne 0 ] && dialog --infobox "Update canceled by the user." 3 40 && sleep 2 && clear && return
+
+  # Process the selected updates
+  FAILED=false
+  for updateFunction in ${CHOICES}; do
+    $updateFunction || FAILED=true
   done
 
-  if [ "${FAILED}" = "true" ]; then
-    dialog --backtitle "$(backtitle)" --title "Update Dependencies" --aspect 18 \
-      --infobox "Update Dependencies failed! Try again later." 3 40
+  # Display the result of the update process
+  if $FAILED; then
+    dialog --infobox "Some updates failed! Try again later." 3 40
   else
-    dialog --backtitle "$(backtitle)" --title "Update Dependencies" --aspect 18 \
-      --infobox "Update Dependencies successful!" 3 40
+    dialog --infobox "All selected updates completed successfully!" 3 40
     writeConfigKey "arc.builddone" "false" "${USER_CONFIG_FILE}"
   fi
+
   sleep 3
   clear
   exec arc.sh

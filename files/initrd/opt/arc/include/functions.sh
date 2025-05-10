@@ -40,7 +40,6 @@ function arc_mode() {
   else
     ARC_MODE="dsm"
   fi
-  [ "$(readConfigKey "${MODEL:-SA6400}.serial" "${S_FILE}")" ] && ARC_CONF="true" || true
 }
 
 
@@ -73,7 +72,7 @@ function checkNIC() {
         fi
         break
       fi
-      if [ ${COUNT} -ge ${BOOTIPWAIT} ]; then
+      if [ "${COUNT}" -ge "${BOOTIPWAIT}" ]; then
         echo -e "\r${DRIVER}: \033[1;37mTIMEOUT\033[0m"
         break
       fi
@@ -196,11 +195,11 @@ function generateMacAddress() {
   else
     MACSUF="$(printf '%02x%02x%02x' $((${RANDOM} % 256)) $((${RANDOM} % 256)) $((${RANDOM} % 256)))"
   fi
-  NUM=${2:-1}
+  NUM="${2:-1}"
   local MACS=""
-  for I in $(seq 1 ${NUM}); do
+  for I in $(seq 1 "${NUM}"); do
     MACS+="$(printf '%06x%06x' $((0x${MACPRE:-"001132"})) $(($((0x${MACSUF})) + ${I})))"
-    [ ${I} -lt ${NUM} ] && MACS+=" "
+    [ "${I}" -lt "${NUM}" ] && MACS+=" "
   done
 
   MACS="$(echo "${MACS}" | tr '[:upper:]' '[:lower:]')"
@@ -221,13 +220,13 @@ function validateSerial() {
   M=${2:4:3}
   S=${2:7}
   L=${#2}
-  if [ ${L} -ne 13 ]; then
+  if [ "${L}" -ne 13 ]; then
     return 1
   fi
-  if ! arrayExistItem ${P} ${PREFIX}; then
+  if ! arrayExistItem "${P}" "${PREFIX}"; then
     return 1
   fi
-  if ! arrayExistItem ${M} ${MIDDLE}; then
+  if ! arrayExistItem "${M}" "${MIDDLE}"; then
     return 1
   fi
   case "${SUFFIX:-"alpha"}" in
@@ -264,35 +263,32 @@ function arrayExistItem() {
 
 ###############################################################################
 # Get values in .conf K=V file
-# 1 - file
-# 2 - key
+# 1 - key
+# 2 - file
 function _get_conf_kv() {
-  grep "^${2}=" "${1}" 2>/dev/null | cut -d'=' -f2- | sed 's/^"//;s/"$//' 2>/dev/null
-  return $?
+  grep "${1}" "${2}" | sed "s|^${1}=\"\(.*\)\"$|\1|g"
 }
 
 ###############################################################################
 # Replace/remove/add values in .conf K=V file
-# 1 - file
-# 2 - key
-# 3 - value
+# 1 - name
+# 2 - new_val
+# 3 - path
 function _set_conf_kv() {
   # Delete
-  if [ -z "${3}" ]; then
-    sed -i "/^${2}=/d" "${1}" 2>/dev/null
+  if [ -z "${2}" ]; then
+    sed -i "${3}" -e "s/^${1}=.*$//"
     return $?;
   fi
 
   # Replace
-  if grep -q "^${2}=" "${1}" 2>/dev/null; then
-    sed -i "s#^${2}=.*#${2}=\"${3}\"#" "${1}" 2>/dev/null
+  if grep -q "^${1}=" "${3}"; then
+    sed -i "${3}" -e "s\"^${1}=.*\"${1}=\\\"${2}\\\"\""
     return $?
   fi
 
   # Add if doesn't exist
-  mkdir -p "$(dirname "${1}" 2>/dev/null)" 2>/dev/null
-  echo "${2}=\"${3}\"" >>"${1}" 2>/dev/null
-  return $?
+  echo "${1}=\"${2}\"" >>"${3}"
 }
 
 ###############################################################################
@@ -595,13 +591,14 @@ function systemCheck () {
   fi
   # Check for CPU Frequency Scaling
   CPUFREQUENCIES=$(ls -l /sys/devices/system/cpu/cpufreq/*/* 2>/dev/null | wc -l)
-  if [ ${CPUFREQUENCIES} -gt 0 ]; then
+  if [ "${CPUFREQUENCIES}" -gt 0 ]; then
     CPUFREQ="true"
   else
     CPUFREQ="false"
   fi
   # Check for Arc Patch
   arc_mode
+  ARC_CONF="$(readConfigKey "${MODEL:-SA6400}.serial" "${S_FILE}")"
   [ -z "${ARC_CONF}" ] && writeConfigKey "arc.patch" "false" "${USER_CONFIG_FILE}"
   getnetinfo
   getdiskinfo
@@ -654,7 +651,7 @@ function _bootwait() {
   [ -z "${BOOTWAIT}" ] && BOOTWAIT="5"
   busybox w 2>/dev/null | awk '{print $1" "$2" "$4" "$5" "$6}' >WB
   MSG=""
-  while [ ${BOOTWAIT} -gt 0 ]; do
+  while [ "${BOOTWAIT}" -gt 0 ]; do
     sleep 1
     BOOTWAIT=$((BOOTWAIT - 1))
     MSG="\033[1;33mAccess to SSH/Web will interrupt boot...\033[0m"
@@ -693,6 +690,7 @@ function readData() {
     PLATFORM="$(readConfigKey "platform" "${USER_CONFIG_FILE}")"
     DT="$(readConfigKey "platforms.${PLATFORM}.dt" "${P_FILE}")"
     PRODUCTVER="$(readConfigKey "productver" "${USER_CONFIG_FILE}")"
+    KVER="$(readConfigKey "platforms.${PLATFORM}.productvers.\"${PRODUCTVER}\".kver" "${P_FILE}")"
   fi
 
   # Get Arc Data from Config
@@ -720,7 +718,6 @@ function readData() {
   KERNELPANIC="$(readConfigKey "kernelpanic" "${USER_CONFIG_FILE}")"
   GOVERNOR="$(readConfigKey "governor" "${USER_CONFIG_FILE}")"
   STORAGEPANEL="$(readConfigKey "addons.storagepanel" "${USER_CONFIG_FILE}")"
-  SEQUENTIALIO="$(readConfigKey "addons.sequentialio" "${USER_CONFIG_FILE}")"
   ODP="$(readConfigKey "odp" "${USER_CONFIG_FILE}")"
   RD_COMPRESSED="$(readConfigKey "rd-compressed" "${USER_CONFIG_FILE}")"
   SATADOM="$(readConfigKey "satadom" "${USER_CONFIG_FILE}")"

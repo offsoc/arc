@@ -27,7 +27,7 @@ printf "\033[1;30m%*s\033[A\n" ${COLUMNS} ""
 printf "\033[1;34m%*s\033[0m\n" ${COLUMNS} "${BANNER}"
 printf "\033[1;34m%*s\033[0m\n" $(((${#TITLE} + ${COLUMNS}) / 2)) "${TITLE}"
 TITLE="Boot:"
-[ ${EFI} -eq 1 ] && TITLE+=" [UEFI]" || TITLE+=" [BIOS]"
+[ "${EFI}" = "1" ] && TITLE+=" [UEFI]" || TITLE+=" [BIOS]"
 TITLE+=" | Device: [${BUS}] | Mode: [${ARC_MODE}]"
 printf "\033[1;34m%*s\033[0m\n" $(((${#TITLE} + ${COLUMNS}) / 2)) "${TITLE}"
 # Check if DSM zImage/Ramdisk is changed, patch it if necessary, update Files if necessary
@@ -54,15 +54,14 @@ CPU="$(echo $(cat /proc/cpuinfo 2>/dev/null | grep 'model name' | uniq | awk -F'
 RAMTOTAL="$(awk '/MemTotal:/ {printf "%.0f\n", $2 / 1024 / 1024 + 0.5}' /proc/meminfo 2>/dev/null)"
 VENDOR="$(dmesg 2>/dev/null | grep -i "DMI:" | head -1 | sed 's/\[.*\] DMI: //i')"
 MACHINE="$(virt-what 2>/dev/null | head -1)"
-if [ -z "${MACHINE}" ]; then
-  MACHINE="physical"
-fi
+[ -z "${MACHINE}" ] && MACHINE="physical" || true
 DSMINFO="$(readConfigKey "bootscreen.dsminfo" "${USER_CONFIG_FILE}")"
 SYSTEMINFO="$(readConfigKey "bootscreen.systeminfo" "${USER_CONFIG_FILE}")"
 DISKINFO="$(readConfigKey "bootscreen.diskinfo" "${USER_CONFIG_FILE}")"
 HWIDINFO="$(readConfigKey "bootscreen.hwidinfo" "${USER_CONFIG_FILE}")"
 GOVERNOR="$(readConfigKey "governor" "${USER_CONFIG_FILE}")"
 USBMOUNT="$(readConfigKey "usbmount" "${USER_CONFIG_FILE}")"
+HDDSORT="$(readConfigKey "hddsort" "${USER_CONFIG_FILE}")"
 BUILDDONE="$(readConfigKey "arc.builddone" "${USER_CONFIG_FILE}")"
 ARC_PATCH="$(readConfigKey "arc.patch" "${USER_CONFIG_FILE}")"
 
@@ -71,7 +70,7 @@ ARC_PATCH="$(readConfigKey "arc.patch" "${USER_CONFIG_FILE}")"
 [[ -z "${MODELID}" || "${MODELID}" != "${MODEL}" ]] && die "Loader build not completed! Model mismatch! -> Rebuild loader!"
 
 # HardwareID Check
-if [ "${ARC_PATCH}" = "true" ] || [ -n "${ARCCONF}" ]; then
+if [ "${ARC_PATCH}" = "true" ]; then
   HARDWAREID="$(readConfigKey "arc.hardwareid" "${USER_CONFIG_FILE}")"
   HWID="$(genHWID)"
   if [ "${HARDWAREID}" != "${HWID}" ]; then
@@ -122,10 +121,10 @@ if ! readConfigMap "addons" "${USER_CONFIG_FILE}" | grep -q nvmesystem; then
       break
     fi
   done
-  [ ${HASATA} -eq 0 ] && echo -e "\033[1;31m*** Note: Please insert at least one Sata/SAS/SCSI Disk for System installation, except the Bootloader Disk. ***\033[0m"
+  [ "${HASATA}" -eq 0 ] && echo -e "\033[1;31m*** Note: Please insert at least one Sata/SAS/SCSI Disk for System installation, except the Bootloader Disk. ***\033[0m"
 fi
 
-if checkBIOS_VT_d && [[ "${KVER}" =~ ^4 ]]; then
+if checkBIOS_VT_d && [ "${KVER:0:1}" = "4" ]; then
   echo -e "\033[1;31m*** Notice: Disable Intel(VT-d)/AMD(AMD-V) in BIOS/UEFI settings if you encounter a boot issues. ***\033[0m"
   echo
 fi
@@ -149,33 +148,35 @@ CMDLINE['pid']="${PID:-"0x0001"}"
 CMDLINE['sn']="${SN}"
 
 # NIC Cmdline
-ETHX="$(find /sys/class/net/ -mindepth 1 -maxdepth 1 -name 'eth*' -exec basename {} \; | sort)"
-ETHM="$(readConfigKey "${MODEL}.ports" "${S_FILE}")"
-ETHN=$(echo "${ETHX}" | wc -w)
+ETHX=$(find /sys/class/net/ -mindepth 1 -maxdepth 1 -name 'eth*' -exec basename {} \; | sort)
+ETHM=$(readConfigKey "${MODEL}.ports" "${S_FILE}")
+ETHN=$(wc -w <<< "${ETHX}")
 ETHM=${ETHM:-${ETHN}}
 NIC=0
 for N in ${ETHX}; do
   MAC="$(readConfigKey "${N}" "${USER_CONFIG_FILE}")"
   [ -z "${MAC}" ] && MAC="$(cat /sys/class/net/${N}/address 2>/dev/null)"
   CMDLINE["mac$((++NIC))"]="${MAC}"
-  [ ${NIC} -ge ${ETHM} ] && break
+  [ "${NIC}" -ge "${ETHM}" ] && break
 done
 CMDLINE['netif_num']="${NIC}"
 
 # Boot Cmdline
-for BM in force_junior recovery; do
-  if grep -q "${BM}" /proc/cmdline; then
-    CMDLINE["${BM}"]=""
-  fi
-done
-if [ ${EFI} -eq 1 ]; then
+if grep -q "force_junior" /proc/cmdline; then
+  CMDLINE["force_junior"]=""
+fi
+if grep -q "recovery" /proc/cmdline; then
+  CMDLINE["recovery"]=""
+fi
+
+if [ "${EFI}" = "1" ]; then
    CMDLINE['withefi']=""
  else
    CMDLINE['noefi']=""
  fi
 
 # DSM Cmdline
-if [[ "${KVER}" =~ ^4 ]]; then
+if [ "${KVER:0:1}" = "4" ]; then
   if [ "${BUS}" != "usb" ]; then
     SZ=$(blockdev --getsz "${LOADER_DISK}" 2>/dev/null) # SZ=$(cat /sys/block/${LOADER_DISK/\/dev\//}/size)
     SS=$(blockdev --getss "${LOADER_DISK}" 2>/dev/null) # SS=$(cat /sys/block/${LOADER_DISK/\/dev\//}/queue/hw_sector_size)
@@ -226,22 +227,34 @@ CMDLINE['pcie_aspm']="off"
 # CMDLINE['nomodeset']=""
 CMDLINE['nowatchdog']=""
 CMDLINE['modprobe.blacklist']="${MODBLACKLIST}"
-CMDLINE['mev']="${MACHINE:-physical}"
+CMDLINE['mev']="${MACHINE}"
 
+if [ "${HDDSORT}" = "true" ]; then
+  CMDLINE['hddsort']=""
+fi
 if [ "${USBMOUNT}" = "true" ]; then
   CMDLINE['usbinternal']=""
 fi
-
 if [ -n "${GOVERNOR}" ]; then
   CMDLINE['governor']="${GOVERNOR}"
 fi
 
-for P in apollolake geminilake purley; do
-  if [ "${PLATFORM}" = "${P}" ]; then
-    CMDLINE['nox2apic']=""
-    break
+if [ "${PLATFORM}" = "apollolake" ] || [ "${PLATFORM}" = "geminilake" ] || [ "${PLATFORM}" = "purley" ]; then
+  CMDLINE['nox2apic']=""
+fi
+
+if [ "${PLATFORM}" = "apollolake" ] || [ "${PLATFORM}" = "geminilake" ]; then
+  CMDLINE['SASmodel']="1"
+fi
+
+if [ "${DT}" = "true" ]; then
+  if [ "${PLATFORM}" != "v1000nk" ] && [ "${PLATFORM}" != "epyc7002" ] && [ "${PLATFORM}" != "purley" ] && [ "${PLATFORM}" != "broadwellnkv2" ]; then
+    if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "mpt3sas"; then
+      [ -n "${CMDLINE['modprobe.blacklist']}" ] && CMDLINE['modprobe.blacklist']+=","
+      CMDLINE['modprobe.blacklist']+="mpt3sas"
+    fi
   fi
-done
+fi
 
 # if [ -n "$(ls /dev/mmcblk* 2>/dev/null)" ] && [ "${BUS}" != "mmc" ] && [ "${EMMCBOOT}" != "true" ]; then
 #   if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "sdhci"; then
@@ -249,28 +262,9 @@ done
 #     CMDLINE['modprobe.blacklist']+="sdhci,sdhci_pci,sdhci_acpi"
 #   fi
 # fi
-if [ "${DT}" = "true" ]; then
-  for P in v1000nk epyc7002 purley broadwellnkv2; do
-    if [ "${PLATFORM}" = "${P}" ]; then
-      break
-    fi
-  done
-  if [ "${PLATFORM}" != "${P}" ]; then
-    if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "mpt3sas"; then
-      [ ! "${CMDLINE['modprobe.blacklist']}" = "" ] && CMDLINE['modprobe.blacklist']+=","
-      CMDLINE['modprobe.blacklist']+="mpt3sas"
-    fi
-  fi
-fi
+
 # CMDLINE['kvm.ignore_msrs']="1"
 # CMDLINE['kvm.report_ignored_msrs']="0"
-
-for P in apollolake geminilake; do
-  if [ "${PLATFORM}" = "${P}" ]; then
-    CMDLINE['SASmodel']="1"
-    break
-  fi
-done
 
 # Read user network settings
 while IFS=': ' read -r KEY VALUE; do
