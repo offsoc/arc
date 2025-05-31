@@ -5,6 +5,16 @@ set -e
 
 . "${ARC_PATH}/include/functions.sh"
 
+# VMware time sync
+if type vmware-toolbox-cmd >/dev/null 2>&1; then
+  if [ "Disable" = "$(vmware-toolbox-cmd timesync status 2>/dev/null)" ]; then
+    vmware-toolbox-cmd timesync enable >/dev/null 2>&1 || true
+  fi
+  if [ "Enabled" = "$(vmware-toolbox-cmd timesync status 2>/dev/null)" ]; then
+    vmware-toolbox-cmd timesync disable >/dev/null 2>&1 || true
+  fi
+fi
+
 # Get Loader Disk Bus
 [ -z "${LOADER_DISK}" ] && die "Loader Disk not found!"
 checkBootLoader || die "The loader is corrupted, please rewrite it!"
@@ -54,6 +64,7 @@ initConfigKey "bootscreen.dsmlogo" "true" "${USER_CONFIG_FILE}"
 initConfigKey "bootipwait" "30" "${USER_CONFIG_FILE}"
 initConfigKey "device" "{}" "${USER_CONFIG_FILE}"
 initConfigKey "directboot" "false" "${USER_CONFIG_FILE}"
+initConfigKey "dsmver" "" "${USER_CONFIG_FILE}"
 initConfigKey "emmcboot" "false" "${USER_CONFIG_FILE}"
 initConfigKey "governor" "performance" "${USER_CONFIG_FILE}"
 initConfigKey "hddsort" "false" "${USER_CONFIG_FILE}"
@@ -85,15 +96,9 @@ initConfigKey "time" "{}" "${USER_CONFIG_FILE}"
 initConfigKey "usbmount" "false" "${USER_CONFIG_FILE}"
 initConfigKey "zimage-hash" "" "${USER_CONFIG_FILE}"
 
-# Check for Addons and remove old ones
-deleteConfigKey "addons.codecpatch" "${USER_CONFIG_FILE}"
-deleteConfigKey "addons.photosfacepatch" "${USER_CONFIG_FILE}"
-deleteConfigKey "addons.sspatch" "${USER_CONFIG_FILE}"
-
-
 # Sort network interfaces
 if arrayExistItem "sortnetif:" $(readConfigMap "addons" "${USER_CONFIG_FILE}"); then
-  echo -e "Sorting NIC: \033[1;34menabled\033[0m"
+  echo -e "NIC sorting: \033[1;34menabled\033[0m"
   _sort_netif "$(readConfigKey "addons.sortnetif" "${USER_CONFIG_FILE}")"
   echo
 fi
@@ -102,12 +107,15 @@ ETHX="$(find /sys/class/net/ -mindepth 1 -maxdepth 1 -name 'eth*' -exec basename
 for N in ${ETHX}; do
   MACR="$(cat /sys/class/net/${N}/address 2>/dev/null | sed 's/://g')"
   IPR="$(readConfigKey "network.${MACR}" "${USER_CONFIG_FILE}")"
-  if [ -n "${IPR}" ] && [ "1" = "$(cat /sys/class/net/${N}/carrier 2>/dev/null)" ]; then
+  if [ -n "${IPR}" ]; then
+    if [ ! "1" = "$(cat "/sys/class/net/${N}/carrier" 2>/dev/null)" ]; then
+      ip link set "${N}" up 2>/dev/null || true
+    fi
     IFS='/' read -r -a IPRA <<<"${IPR}"
-    ip addr flush dev "${N}"
-    ip addr add "${IPRA[0]}/${IPRA[1]:-"255.255.255.0"}" dev "${N}"
+    ip addr flush dev "${N}" 2>/dev/null || true
+      ip addr add "${IPRA[0]}/${IPRA[1]:-"255.255.255.0"}" dev "${N}" 2>/dev/null || true
     if [ -n "${IPRA[2]}" ]; then
-      ip route add default via "${IPRA[2]}" dev "${N}"
+      ip route add default via "${IPRA[2]}" dev "${N}" 2>/dev/null || true
     fi
     if [ -n "${IPRA[3]:-${IPRA[2]}}" ]; then
       sed -i "/nameserver ${IPRA[3]:-${IPRA[2]}}/d" /etc/resolv.conf
@@ -133,7 +141,7 @@ BUSLIST="usb sata sas scsi nvme mmc ide virtio vmbus xen"
 if [ "${BUS}" = "usb" ]; then
   VID="0x$(udevadm info --query property --name "${LOADER_DISK}" 2>/dev/null | grep "ID_VENDOR_ID" | cut -d= -f2)"
   PID="0x$(udevadm info --query property --name "${LOADER_DISK}" 2>/dev/null | grep "ID_MODEL_ID" | cut -d= -f2)"
-elif ! echo "${BUSLIST}" | grep -wq "${BUS}"; then
+elif ! (echo "${BUSLIST}" | grep -wq "${BUS}"); then
   die "$(printf "The boot disk does not support the current %s, only %s are supported." "${BUS}" "${BUSLIST// /\/}")"
 fi
 
@@ -186,13 +194,13 @@ touch "${HOME}/.initialized"
 # Load Arc Overlay
 echo -e "\033[1;34mLoading Arc Overlay...\033[0m"
 echo
-echo -e "Use \033[1;34mDisplay Output\033[0m or \033[1;34mhttp://${IPCON}${HTTPPORT:+:$HTTPPORT}\033[0m to configure Loader."
+echo -e "Use \033[1;34mDisplay Output\033[0m or \033[1;34mhttp://${IPCON}:${HTTPPORT:-7080}\033[0m to configure Loader."
 
 # Check memory and load Arc
 RAM=$(awk '/MemTotal:/ {printf "%.0f", $2 / 1024}' /proc/meminfo 2>/dev/null)
 if [ "${RAM}" -le 3500 ]; then
-  echo -e "\033[1;31mYou have less than 4GB of RAM, if errors occur in loader creation, please increase the amount of RAM.\033[0m\n\033[1;31mUse arc.sh to proceed. Not recommended!\033[0m"
+  echo -e "\033[1;31mYou have less than 4GB of RAM, if errors occur in loader creation, please increase the amount of RAM.\033[0m"
+  read -rp "Press Enter to continue..."
 else
   exec arc.sh
 fi
-exit 0

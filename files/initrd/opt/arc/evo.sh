@@ -5,10 +5,13 @@
 [[ -z "${ARC_PATH}" || ! -d "${ARC_PATH}/include" ]] && ARC_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 
 . "${ARC_PATH}/arc-functions.sh"
+. "${ARC_PATH}/include/functions.sh"
+. "${ARC_PATH}/include/addons.sh"
+. "${ARC_PATH}/include/modules.sh"
+. "${ARC_PATH}/include/update.sh"
 
-# Get Keymap and Timezone and check System
+# Check System
 onlineCheck
-KEYMAP="$(readConfigKey "keymap" "${USER_CONFIG_FILE}")"
 systemCheck
 readData
 
@@ -17,12 +20,12 @@ readData
 function backtitle() {
   BACKTITLE="${ARC_TITLE}$([ -n "${NEWTAG}" ] && [ -n "${ARC_VERSION}" ] && [ ${ARC_VERSION//[!0-9]/} -lt ${NEWTAG//[!0-9]/} ] && echo " > ${NEWTAG}") | "
   BACKTITLE+="${MODEL:-(Model)} | "
-  BACKTITLE+="${PRODUCTVER:-(Version)} | "
+  BACKTITLE+="${DSMVER:-(Version)} | "
   BACKTITLE+="${IPCON:-(no IP)} | "
   BACKTITLE+="Patch: ${ARC_PATCH} | "
   BACKTITLE+="Config: ${CONFDONE} | "
   BACKTITLE+="Build: ${BUILDDONE} | "
-  BACKTITLE+="${MACHINE}(${BUS}) | "
+  BACKTITLE+="${MEV}(${BUS}) | "
   [ -n "${KEYMAP}" ] && BACKTITLE+="KB: ${KEYMAP}"
   [ "${ARC_OFFLINE}" = "true" ] && BACKTITLE+=" | Offline"
   echo "${BACKTITLE}"
@@ -276,7 +279,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
       EXTRA_LABEL="Boot"
     fi
     if [ "$TERM" != "xterm-256color" ]; then
-      WEBCONFIG="Webconfig: http://${IPCON}${HTTPPORT:+:$HTTPPORT}"
+      WEBCONFIG="Webconfig: http://${IPCON}:${HTTPPORT:-7080}"
     else
       WEBCONFIG=""
     fi
@@ -303,7 +306,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
           K) KERNEL=$([ "${KERNEL}" = "official" ] && echo 'custom' || echo 'official')
             writeConfigKey "kernel" "${KERNEL}" "${USER_CONFIG_FILE}"
             dialog --backtitle "$(backtitle)" --title "Kernel" \
-              --infobox "Switching Kernel to ${KERNEL}! Stay patient..." 4 50
+              --infobox "Switching Kernel to ${KERNEL}! Stay patient..." 3 50
             if [ "${ODP}" = "true" ]; then
               ODP="false"
               writeConfigKey "odp" "${ODP}" "${USER_CONFIG_FILE}"
@@ -380,7 +383,7 @@ fi
 # Inform user
 echo -e "Call \033[1;34marc.sh\033[0m to configure Loader"
 echo
-echo -e "Web Config: \033[1;34mhttp://${IPCON}${HTTPPORT:+:$HTTPPORT}\033[0m"
+echo -e "Web Config: \033[1;34mhttp://${IPCON}:${HTTPPORT:-7080}\033[0m"
 echo
 echo -e "SSH Access:"
 echo -e "IP: \033[1;34m${IPCON}\033[0m"

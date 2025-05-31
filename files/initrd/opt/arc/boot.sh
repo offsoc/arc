@@ -5,7 +5,7 @@ set -e
 
 . "${ARC_PATH}/include/functions.sh"
 
-arc_mode || die "No bootmode found!"
+arc_mode || die "Bootmode not found!"
 
 # Clear logs for dbgutils addons
 rm -rf "${PART1_PATH}/logs" >/dev/null 2>&1 || true
@@ -53,8 +53,8 @@ KVER="$(readConfigKey "platforms.${PLATFORM}.productvers.\"${PRODUCTVER}\".kver"
 CPU="$(echo $(cat /proc/cpuinfo 2>/dev/null | grep 'model name' | uniq | awk -F':' '{print $2}'))"
 RAMTOTAL="$(awk '/MemTotal:/ {printf "%.0f\n", $2 / 1024 / 1024 + 0.5}' /proc/meminfo 2>/dev/null)"
 VENDOR="$(dmesg 2>/dev/null | grep -i "DMI:" | head -1 | sed 's/\[.*\] DMI: //i')"
-MACHINE="$(virt-what 2>/dev/null | head -1)"
-[ -z "${MACHINE}" ] && MACHINE="physical" || true
+MEV="$(virt-what 2>/dev/null | head -1)"
+[ -z "${MEV}" ] && MEV="physical"
 DSMINFO="$(readConfigKey "bootscreen.dsminfo" "${USER_CONFIG_FILE}")"
 SYSTEMINFO="$(readConfigKey "bootscreen.systeminfo" "${USER_CONFIG_FILE}")"
 DISKINFO="$(readConfigKey "bootscreen.diskinfo" "${USER_CONFIG_FILE}")"
@@ -66,15 +66,15 @@ BUILDDONE="$(readConfigKey "arc.builddone" "${USER_CONFIG_FILE}")"
 ARC_PATCH="$(readConfigKey "arc.patch" "${USER_CONFIG_FILE}")"
 
 # Build Sanity Check
-[ "${BUILDDONE}" = "false" ] && die "Loader build not completed!"
-[[ -z "${MODELID}" || "${MODELID}" != "${MODEL}" ]] && die "Loader build not completed! Model mismatch! -> Rebuild loader!"
+[ "${BUILDDONE}" = "false" ] && die "Build not completed!"
+[[ -z "${MODELID}" || "${MODELID}" != "${MODEL}" ]] && die "Build not completed! Model mismatch! -> Rebuild loader!"
 
 # HardwareID Check
 if [ "${ARC_PATCH}" = "true" ]; then
   HARDWAREID="$(readConfigKey "arc.hardwareid" "${USER_CONFIG_FILE}")"
   HWID="$(genHWID)"
   if [ "${HARDWAREID}" != "${HWID}" ]; then
-    echo -e "\033[1;31m*** HardwareID does not match! - Loader can't verfify your System! You need to reconfigure your Loader - Rebooting to Config Mode! ***\033[0m"
+    echo -e "\033[1;31m*** HardwareID mismatch! - You need to reconfigure your Loader - Rebooting to Config Mode! ***\033[0m"
     rm -f "${USER_CONFIG_FILE}" 2>/dev/null || true
     [ -f "${S_FILE}.bak" ] && mv -f "${S_FILE}.bak" "${S_FILE}" 2>/dev/null || true
     sleep 5
@@ -97,7 +97,7 @@ if [ "${SYSTEMINFO}" = "true" ]; then
   echo -e "CPU: \033[1;37m${CPU}\033[0m"
   echo -e "Memory: \033[1;37m${RAMTOTAL}GB\033[0m"
   echo -e "Governor: \033[1;37m${GOVERNOR}\033[0m"
-  echo -e "Type: \033[1;37m${MACHINE}\033[0m"
+  echo -e "Type: \033[1;37m${MEV}\033[0m"
   [ "${USBMOUNT}" = "true" ] && echo -e "USB Mount: \033[1;37m${USBMOUNT}\033[0m"
   echo
 fi
@@ -189,8 +189,6 @@ if [ "${KVER:0:1}" = "4" ]; then
   CMDLINE['elevator']="elevator"
 else
   CMDLINE['split_lock_detect']="off"
-  # CMDLINE['module.sig_enforce']="0"
-  # CMDLINE['loadpin.enforce']="0"
 fi
 
 if [ "${DT}" = "true" ]; then
@@ -209,25 +207,19 @@ CMDLINE['earlyprintk']=""
 CMDLINE['earlycon']="uart8250,io,0x3f8,115200n8"
 CMDLINE['console']="ttyS0,115200n8"
 CMDLINE['consoleblank']="600"
-# CMDLINE['no_console_suspend']="1"
 CMDLINE['root']="/dev/md0"
 CMDLINE['loglevel']="15"
 CMDLINE['log_buf_len']="32M"
 CMDLINE['rootwait']=""
 CMDLINE['panic']="${KERNELPANIC:-0}"
-# CMDLINE['intremap']="off"
-# CMDLINE['amd_iommu_intr']="legacy"
 CMDLINE['pcie_aspm']="off"
-
-# if grep -qi "intel" /proc/cpuinfo; then
-#   CMDLINE['intel_pstate']="disable"
-# elif grep -qi "amd" /proc/cpuinfo; then
-#   CMDLINE['amd_pstate']="disable"
-# fi
-# CMDLINE['nomodeset']=""
 CMDLINE['nowatchdog']=""
-CMDLINE['modprobe.blacklist']="${MODBLACKLIST}"
-CMDLINE['mev']="${MACHINE}"
+CMDLINE['mev']="${MEV}"
+
+if [ "${MEV}" = "vmware" ]; then
+  CMDLINE['tsc']="reliable"
+  CMDLINE['pmtmr']="0x0"
+fi
 
 if [ "${HDDSORT}" = "true" ]; then
   CMDLINE['hddsort']=""
@@ -239,32 +231,25 @@ if [ -n "${GOVERNOR}" ]; then
   CMDLINE['governor']="${GOVERNOR}"
 fi
 
-if [ "${PLATFORM}" = "apollolake" ] || [ "${PLATFORM}" = "geminilake" ] || [ "${PLATFORM}" = "purley" ]; then
+if is_in_array "${PLATFORM}" "${XAPICRL[@]}"; then
   CMDLINE['nox2apic']=""
 fi
 
-if [ "${PLATFORM}" = "apollolake" ] || [ "${PLATFORM}" = "geminilake" ]; then
+if is_in_array "${PLATFORM}" "${IGFXRL[@]}"; then
+  CMDLINE["intel_iommu"]="igfx_off"
+fi
+
+if [ "${PLATFORM}" = "purley" ] || [ "${PLATFORM}" = "broadwellnkv2" ]; then
   CMDLINE['SASmodel']="1"
 fi
 
-if [ "${DT}" = "true" ]; then
-  if [ "${PLATFORM}" != "v1000nk" ] && [ "${PLATFORM}" != "epyc7002" ] && [ "${PLATFORM}" != "purley" ] && [ "${PLATFORM}" != "broadwellnkv2" ]; then
-    if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "mpt3sas"; then
-      [ -n "${CMDLINE['modprobe.blacklist']}" ] && CMDLINE['modprobe.blacklist']+=","
-      CMDLINE['modprobe.blacklist']+="mpt3sas"
-    fi
+CMDLINE['modprobe.blacklist']="${MODBLACKLIST}"
+if [ "${DT}" = "true" ] && ! is_in_array "${PLATFORM}" "${MPT3PL[@]}"; then
+  if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "mpt3sas"; then
+    [ -n "${CMDLINE['modprobe.blacklist']}" ] && CMDLINE['modprobe.blacklist']+=","
+    CMDLINE['modprobe.blacklist']+="mpt3sas"
   fi
 fi
-
-# if [ -n "$(ls /dev/mmcblk* 2>/dev/null)" ] && [ "${BUS}" != "mmc" ] && [ "${EMMCBOOT}" != "true" ]; then
-#   if ! echo "${CMDLINE['modprobe.blacklist']}" | grep -q "sdhci"; then
-#     [ ! "${CMDLINE['modprobe.blacklist']}" = "" ] && CMDLINE['modprobe.blacklist']+=","
-#     CMDLINE['modprobe.blacklist']+="sdhci,sdhci_pci,sdhci_acpi"
-#   fi
-# fi
-
-# CMDLINE['kvm.ignore_msrs']="1"
-# CMDLINE['kvm.report_ignored_msrs']="0"
 
 # Read user network settings
 while IFS=': ' read -r KEY VALUE; do

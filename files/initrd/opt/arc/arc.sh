@@ -10,9 +10,8 @@
 . "${ARC_PATH}/include/modules.sh"
 . "${ARC_PATH}/include/update.sh"
 
-# Get Keymap and Timezone and check System
+# Check System
 onlineCheck
-KEYMAP="$(readConfigKey "keymap" "${USER_CONFIG_FILE}")"
 systemCheck
 readData
 
@@ -21,12 +20,12 @@ readData
 function backtitle() {
   BACKTITLE="${ARC_TITLE}$([ -n "${NEWTAG}" ] && [ -n "${ARC_VERSION}" ] && [ ${ARC_VERSION//[!0-9]/} -lt ${NEWTAG//[!0-9]/} ] && echo " > ${NEWTAG}") | "
   BACKTITLE+="${MODEL:-(Model)} | "
-  BACKTITLE+="${PRODUCTVER:-(Version)} | "
+  BACKTITLE+="${DSMVER:-(Version)} | "
   BACKTITLE+="${IPCON:-(no IP)} | "
   BACKTITLE+="Patch: ${ARC_PATCH} | "
   BACKTITLE+="Config: ${CONFDONE} | "
   BACKTITLE+="Build: ${BUILDDONE} | "
-  BACKTITLE+="${MACHINE}(${BUS}) | "
+  BACKTITLE+="${MEV}(${BUS}) | "
   [ -n "${KEYMAP}" ] && BACKTITLE+="KB: ${KEYMAP}"
   [ "${ARC_OFFLINE}" = "true" ] && BACKTITLE+=" | Offline"
   echo "${BACKTITLE}"
@@ -67,14 +66,13 @@ elif [ "${ARC_MODE}" = "config" ]; then
     if [ "${CONFDONE}" = "true" ]; then
       if [ -f "${MOD_ZIMAGE_FILE}" ] && [ -f "${MOD_RDGZ_FILE}" ]; then
         write_menu "2" "Rebuild Loader"
-        write_menu "3" "Rebuild Loader (clean)*"
       else
         write_menu "2" "Build Loader"
       fi
     fi
 
-    if [ "${BUILDDONE}" = "true" ]; then
-      write_menu "4" "Boot Loader"
+    if [ "${BUILDDONE}" = "true" ] && [ -f "${MOD_ZIMAGE_FILE}" ] && [ -f "${MOD_RDGZ_FILE}" ]; then
+      write_menu "3" "Boot Loader"
     fi
 
     write_menu "=" "\Z4===== Info =====\Zn"
@@ -90,7 +88,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
         write_menu "p" "SN/Mac Options"
     
         if [ "${DT}" = "false" ] && [ "${SATACONTROLLER}" -gt 0 ]; then
-          write_menu "S" "Sata PortMap"
+          write_menu "S" "PortMap (Sata Controller)"
         fi
 
         if [ "${DT}" = "true" ]; then
@@ -121,8 +119,9 @@ elif [ "${ARC_MODE}" = "config" ]; then
 
       if [ "${BOOTOPTS}" = "true" ]; then
         write_menu "6" "\Z1Hide Boot Options\Zn"
+        write_menu "f" "Bootscreen Options"
         write_menu_value "m" "Boot Kernelload" "${KERNELLOAD}"
-        write_menu_value "E" "eMMC Boot Support" "${EMMCBOOT}"
+        write_menu_value "E" "DSM on eMMC Boot Support" "${EMMCBOOT}"
         if [ "${DIRECTBOOT}" = "false" ]; then
           write_menu_value "i" "Boot IP Waittime" "${BOOTIPWAIT}"
         fi
@@ -139,6 +138,8 @@ elif [ "${ARC_MODE}" = "config" ]; then
         write_menu "t" "Change User Password"
         write_menu "J" "Reset Network Config"
         write_menu "T" "Disable all scheduled Tasks"
+        write_menu "r" "Remove Blocked IP Database"
+        write_menu "v" "Force enable SSH"
         write_menu "M" "Mount DSM Storage Pool"
         write_menu "l" "Edit User Config"
         write_menu "s" "Allow Downgrade Version"
@@ -152,14 +153,14 @@ elif [ "${ARC_MODE}" = "config" ]; then
       write_menu "8" "\Z1Hide Loader Options\Zn"
       write_menu_value "c" "Offline Mode" "${ARC_OFFLINE}"
       write_menu "D" "StaticIP for Loader/DSM"
-      write_menu "f" "Bootscreen Options"
       write_menu "U" "Change Loader Password"
       write_menu "Z" "Change Loader Ports"
+      write_menu "R" "Change Loader ARP Settings"
       write_menu "w" "Reset Loader to Defaults"
       write_menu "L" "Grep Logs from dbgutils"
       write_menu "B" "Grep DSM Config from Backup"
       write_menu "=" "\Z1== Edit with caution! ==\Zn"
-      write_menu_value "W" "RD Compression" "${RD_COMPRESSED}"
+      write_menu_value "W" "Ramdisk Compression" "${RD_COMPRESSED}"
       write_menu_value "X" "Sata DOM" "${SATADOM}"
       write_menu_value "u" "LKM Version" "${LKM}"
       write_menu "C" "Clone Loader to another Disk"
@@ -175,7 +176,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
     [ "${ARC_OFFLINE}" = "false" ] && write_menu "z" "Update Menu"
     write_menu "I" "Power/Service Menu"
     write_menu "V" "Credits"
-    [ "$TERM" != "xterm-256color" ] && WEBCONFIG="Webconfig: http://${IPCON}${HTTPPORT:+:$HTTPPORT}" || WEBCONFIG=""
+    [ "$TERM" != "xterm-256color" ] && WEBCONFIG="Webconfig: http://${IPCON}:${HTTPPORT:-7080}" || WEBCONFIG=""
     dialog --clear --default-item ${NEXT} --backtitle "$(backtitle)" --title "Advanced UI" --colors \
           --cancel-label "Easy UI" --help-button --help-label "Exit" \
           --menu "${WEBCONFIG}" 0 0 0 --file "${TMP_PATH}/menu" \
@@ -190,11 +191,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
           0) genHardwareID; NEXT="0" ;;
           1) arcModel; NEXT="2" ;;
           2) arcSummary; NEXT="3" ;;
-          3) rm -f "${MOD_ZIMAGE_FILE}" "${MOD_RDGZ_FILE}" >/dev/null 2>&1 || true
-            arcSummary;
-            NEXT="3"
-            ;;
-          4) boot; NEXT="4" ;;
+          3) boot; NEXT="3" ;;
           # Info Section
           a) sysinfo; NEXT="a" ;;
           A) networkdiag; NEXT="A" ;;
@@ -215,6 +212,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
           6) [ "${BOOTOPTS}" = "true" ] && BOOTOPTS='false' || BOOTOPTS='true'
             NEXT="6"
             ;;
+          f) bootScreen; NEXT="f" ;;
           m) [ "${KERNELLOAD}" = "kexec" ] && KERNELLOAD='power' || KERNELLOAD='kexec'
             writeConfigKey "kernelload" "${KERNELLOAD}" "${USER_CONFIG_FILE}"
             NEXT="m"
@@ -259,7 +257,7 @@ elif [ "${ARC_MODE}" = "config" ]; then
           K) KERNEL=$([ "${KERNEL}" = "official" ] && echo 'custom' || echo 'official')
             writeConfigKey "kernel" "${KERNEL}" "${USER_CONFIG_FILE}"
             dialog --backtitle "$(backtitle)" --title "Kernel" \
-              --infobox "Switching Kernel to ${KERNEL}! Stay patient..." 4 50
+              --infobox "Switching Kernel to ${KERNEL}! Stay patient..." 3 50
             if [ "${ODP}" = "true" ]; then
               ODP="false"
               writeConfigKey "odp" "${ODP}" "${USER_CONFIG_FILE}"
@@ -309,9 +307,9 @@ elif [ "${ARC_MODE}" = "config" ]; then
             NEXT="c"
             ;;
           D) staticIPMenu; NEXT="D" ;;
-          f) bootScreen; NEXT="f" ;;
           Z) loaderPorts; NEXT="Z" ;;
           U) loaderPassword; NEXT="U" ;;
+          R) loaderARP; NEXT="R" ;;
           W) RD_COMPRESSED=$([ "${RD_COMPRESSED}" = "true" ] && echo 'false' || echo 'true')
             writeConfigKey "rd-compressed" "${RD_COMPRESSED}" "${USER_CONFIG_FILE}"
             writeConfigKey "arc.builddone" "false" "${USER_CONFIG_FILE}"
@@ -356,7 +354,7 @@ fi
 # Inform user
 echo -e "Call \033[1;34marc.sh\033[0m to configure Loader"
 echo
-echo -e "Web Config: \033[1;34mhttp://${IPCON}${HTTPPORT:+:$HTTPPORT}\033[0m"
+echo -e "Web Config: \033[1;34mhttp://${IPCON}:${HTTPPORT:-7080}\033[0m"
 echo
 echo -e "SSH Access:"
 echo -e "IP: \033[1;34m${IPCON}\033[0m"
