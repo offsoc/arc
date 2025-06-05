@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# Copyright (C) 2025 AuxXxilium <https://github.com/AuxXxilium>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
 
 # shellcheck disable=SC2034
 
@@ -82,7 +88,7 @@ while IFS=': ' read -r KEY VALUE; do
   [ -n "${KEY}" ] && MODULES["${KEY}"]="${VALUE}"
 done < <(readConfigMap "modules" "${USER_CONFIG_FILE}")
 
-SYNOINFO["SN"]="${SN}"
+#SYNOINFO["SN"]="${SN}"
 while IFS=': ' read -r KEY VALUE; do
   [ -n "${KEY}" ] && SYNOINFO["${KEY}"]="${VALUE}"
 done < <(readConfigMap "synoinfo" "${USER_CONFIG_FILE}")

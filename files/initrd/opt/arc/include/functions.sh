@@ -42,6 +42,8 @@ function arc_mode() {
 # Check for NIC and IP
 function checkNIC() {
   # Get Amount of NIC
+  local BOOTIPWAIT="$(readConfigKey "bootipwait" "${USER_CONFIG_FILE}")"
+  [ -z "${BOOTIPWAIT}" ] && BOOTIPWAIT="20"
   ETHX="$(find /sys/class/net/ -mindepth 1 -maxdepth 1 -name 'eth*' -exec basename {} \; | sort)"
   for N in ${ETHX}; do
     COUNT=0
@@ -518,6 +520,7 @@ function livepatch() {
     echo -e ">> patching zImage failed!"
     PVALID="false"
   fi
+  echo
   if [ "${PVALID}" = "true" ]; then
     # Patch Ramdisk
     echo -e ">> patching Ramdisk..."
@@ -529,8 +532,8 @@ function livepatch() {
       PVALID="false"
     fi
   fi
+  echo
   if [ "${PVALID}" = "false" ]; then
-    echo
     echo -e "Please stay patient for Update."
     sleep 5
     exit 1
@@ -602,7 +605,7 @@ function systemCheck () {
   # Check for Arc Patch
   ARC_CONF="$(readConfigKey "${MODEL:-SA6400}.serial" "${S_FILE}")"
   [ -z "${ARC_CONF}" ] && writeConfigKey "arc.patch" "false" "${USER_CONFIG_FILE}"
-  [ ! -f "${D_FILE}" ] && updateOffline || true
+  [ "${OFFLINE}" = "false" ] && updateOffline
   KEYMAP="$(readConfigKey "keymap" "${USER_CONFIG_FILE}")"
   arc_mode
   getnetinfo

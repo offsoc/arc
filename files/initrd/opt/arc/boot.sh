@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
+#
+# Copyright (C) 2025 AuxXxilium <https://github.com/AuxXxilium>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
 
-set -e
+LOCKFILE="/tmp/arc_boot.lock"
+exec 200>"$LOCKFILE"
+flock -n 200 || { echo "Boot is in progress. Exiting."; exit 0; }
+
 [[ -z "${ARC_PATH}" || ! -d "${ARC_PATH}/include" ]] && ARC_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 
 . "${ARC_PATH}/include/functions.sh"
@@ -170,10 +179,10 @@ if grep -q "recovery" /proc/cmdline; then
 fi
 
 if [ "${EFI}" = "1" ]; then
-   CMDLINE['withefi']=""
- else
-   CMDLINE['noefi']=""
- fi
+  CMDLINE['withefi']=""
+else
+  CMDLINE['noefi']=""
+fi
 
 # DSM Cmdline
 if [ "${KVER:0:1}" = "4" ]; then
@@ -314,11 +323,9 @@ elif [ "${DIRECTBOOT}" = "false" ]; then
   done
 
   echo -e "\033[1;37mLoading DSM Kernel...\033[0m"
-  if [ ! -f "${TMP_PATH}/.bootlock" ]; then
-    touch "${TMP_PATH}/.bootlock"
-    kexec -l "${MOD_ZIMAGE_FILE}" --initrd "${MOD_RDGZ_FILE}" --command-line="${CMDLINE_LINE} kexecboot" || die "Failed to load DSM Kernel!"
-    [ "${KERNELLOAD}" = "kexec" ] && kexec -e || poweroff
-  fi
+  touch "${TMP_PATH}/.bootlock"
+  kexec -l "${MOD_ZIMAGE_FILE}" --initrd "${MOD_RDGZ_FILE}" --command-line="${CMDLINE_LINE} kexecboot" || die "Failed to load DSM Kernel!"
+  [ "${KERNELLOAD}" = "kexec" ] && kexec -e || poweroff
   echo -e "\033[1;37mBooting DSM...\033[0m"
   exit 0
 fi

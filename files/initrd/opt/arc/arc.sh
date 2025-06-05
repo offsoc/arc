@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# Copyright (C) 2025 AuxXxilium <https://github.com/AuxXxilium>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
 
 ###############################################################################
 # Overlay Init Section
@@ -32,8 +38,17 @@ function backtitle() {
 }
 
 ###############################################################################
-###############################################################################
 # Main loop
+
+if [ "${ARC_MODE}" = "update" ] || [ "${ARC_MODE}" = "automated" ]; then
+  LOCKFILE="/tmp/arc_menu.lock"
+  exec 200>"$LOCKFILE"
+  flock -n 200 || {
+    echo "Another Arc instance is running in this mode."
+    exit 1
+  }
+fi
+
 if [ "${ARC_MODE}" = "update" ]; then
   if [ "${ARC_OFFLINE}" != "true" ]; then
     updateLoader
@@ -155,7 +170,6 @@ elif [ "${ARC_MODE}" = "config" ]; then
       write_menu "D" "StaticIP for Loader/DSM"
       write_menu "U" "Change Loader Password"
       write_menu "Z" "Change Loader Ports"
-      write_menu "R" "Change Loader ARP Settings"
       write_menu "w" "Reset Loader to Defaults"
       write_menu "L" "Grep Logs from dbgutils"
       write_menu "B" "Grep DSM Config from Backup"
@@ -309,7 +323,6 @@ elif [ "${ARC_MODE}" = "config" ]; then
           D) staticIPMenu; NEXT="D" ;;
           Z) loaderPorts; NEXT="Z" ;;
           U) loaderPassword; NEXT="U" ;;
-          R) loaderARP; NEXT="R" ;;
           W) RD_COMPRESSED=$([ "${RD_COMPRESSED}" = "true" ] && echo 'false' || echo 'true')
             writeConfigKey "rd-compressed" "${RD_COMPRESSED}" "${USER_CONFIG_FILE}"
             writeConfigKey "arc.builddone" "false" "${USER_CONFIG_FILE}"
