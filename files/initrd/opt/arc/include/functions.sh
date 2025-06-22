@@ -61,7 +61,7 @@ function checkNIC() {
       IP="$(getIP "${N}")"
       if [ -n "${IP}" ]; then
         SPEED=$(ethtool ${N} 2>/dev/null | awk '/Speed:/ {print $2}')
-        if [[ "${IP}" =~ ^169\.254\..* ]]; then
+        if echo "${IP}" | grep -q "^169\.254\."; then
           echo -e "\r${DRIVER} (${SPEED}): \033[1;37mLINK LOCAL (No DHCP server found.)\033[0m"
         else
           echo -e "\r${DRIVER} (${SPEED}): \033[1;37m${IP}\033[0m"
@@ -385,7 +385,7 @@ function getLogo() {
 # Find and mount the DSM root filesystem
 function findDSMRoot() {
   local DSMROOTS=""
-  [ -z "${DSMROOTS}" ] && DSMROOTS="$(mdadm --detail --scan 2>/dev/null | grep -E "name=SynologyNAS:0|name=DiskStation:0|name=SynologyNVR:0|name=BeeStation:0" | awk '{print $2}' | uniq)"
+  [ -z "${DSMROOTS}" ] && DSMROOTS="$(mdadm --detail --scan 2>/dev/null | grep -v "INACTIVE-ARRAY" | grep -E "name=SynologyNAS:0|name=DiskStation:0|name=SynologyNVR:0|name=BeeStation:0" | awk '{print $2}' | uniq)"
   [ -z "${DSMROOTS}" ] && DSMROOTS="$(lsblk -pno KNAME,PARTN,FSTYPE,FSVER,LABEL | grep -E "sd[a-z]{1,2}1" | grep -w "linux_raid_member" | grep "0.9" | awk '{print $1}')"
   echo "${DSMROOTS}"
   return 0
@@ -605,7 +605,6 @@ function systemCheck () {
   # Check for Arc Patch
   ARC_CONF="$(readConfigKey "${MODEL:-SA6400}.serial" "${S_FILE}")"
   [ -z "${ARC_CONF}" ] && writeConfigKey "arc.patch" "false" "${USER_CONFIG_FILE}"
-  [ "${OFFLINE}" = "false" ] && updateOffline
   KEYMAP="$(readConfigKey "keymap" "${USER_CONFIG_FILE}")"
   arc_mode
   getnetinfo
@@ -666,9 +665,10 @@ function _bootwait() {
     echo -en "\r${MSG}"
     busybox w 2>/dev/null | awk '{print $1" "$2" "$4" "$5" "$6}' >WC
     if ! diff WB WC >/dev/null 2>&1; then
-      echo -en "\r\033[1;33mAccess to SSH/Web detected and boot is interrupted.\033[0m\n"
+      echo -en "\r\033[1;33mAccess to SSH/Web detected and boot is interrupted. Rebooting to config...\033[0m\n"
       rm -f WB WC
-      return 1
+      sleep 5
+      rebootTo "config"
     fi
   done
   rm -f WB WC
@@ -683,7 +683,12 @@ function fixDSMRootPart() {
   if mdadm --detail "${1}" 2>/dev/null | grep -i "State" | grep -iEq "active|FAILED|Not Started"; then
     mdadm --stop "${1}" >/dev/null 2>&1
     mdadm --assemble --scan >/dev/null 2>&1
-    fsck "${1}" >/dev/null 2>&1
+    T="$(blkid -o value -s TYPE "${1}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
+    if [ "${T}" = "btrfs" ]; then
+      btrfs check --readonly "${1}" >/dev/null 2>&1
+    else
+      fsck "${1}" >/dev/null 2>&1
+    fi
   fi
 }
 

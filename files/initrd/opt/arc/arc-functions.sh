@@ -68,7 +68,7 @@ function arcModel() {
           if is_in_array "${A}" "${KVER5L[@]}"; then
             if [[ "${NVMEDRIVES}" -eq 0 && "${BUS}" = "usb" && "${SATADRIVES}" -eq 0 && "${EXTERNALCONTROLLER}" = "false" ]] ||
                [[ "${NVMEDRIVES}" -eq 0 && "${BUS}" = "sata" && "${SATADRIVES}" -eq 1 && "${EXTERNALCONTROLLER}" = "false" ]] ||
-               [ "${SCSICONTROLLER}" -ge 1 ] || [ "${RAIDCONTROLLER}" -ge 1 ]; then
+               [ "${SCSICONTROLLER}" -ge 1 ] || [ "${RAIDCONTROLLER}" -ge 1 ] || [ "${M}" != "SA6400" ]; then
               COMPATIBLE=0
             fi
           else
@@ -91,6 +91,8 @@ function arcModel() {
           [ "${COMPATIBLE}" -eq 1 ] && echo -e "${M} \"\t$(printf "\Zb%-15s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-10s\Zn \Zb%-12s\Zn \Zb%-10s\Zn \Zb%-10s\Zn" "${A}" "${DTS}" "${IGPUS}" "${HBAS}" "${M_2_CACHE}" "${M_2_STORAGE}" "${USBS}" "${BETA}")\" ">>"${TMP_PATH}/menu"
         fi
       done < <(cat "${TMP_PATH}/modellist")
+      # Check if menu is empty
+      [ ! -s "${TMP_PATH}/menu" ] && echo "No supported models found." >"${TMP_PATH}/menu"
       # Show Menu
       [ "${RESTRICT} " -eq 1 ] && TITLEMSG="Supported Models for your Hardware" || TITLEMSG="Supported and unsupported Models for your Hardware"
       [ -n "${ARC_CONF}" ] && MSG="${TITLEMSG} (x = supported / + = need Addons)\n$(printf "\Zb%-16s\Zn \Zb%-15s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-10s\Zn \Zb%-12s\Zn \Zb%-10s\Zn \Zb%-10s\Zn" "Model" "Platform" "DT" "Arc" "iGPU" "HBA" "M.2 Cache" "M.2 Volume" "USB Mount" "Source")" || MSG="${TITLEMSG} (x = supported / + = need Addons) | Syno Models can have faulty Values.\n$(printf "\Zb%-16s\Zn \Zb%-15s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-5s\Zn \Zb%-10s\Zn \Zb%-12s\Zn \Zb%-10s\Zn \Zb%-10s\Zn" "Model" "Platform" "DT" "iGPU" "HBA" "M.2 Cache" "M.2 Volume" "USB Mount" "Source")"
@@ -402,6 +404,8 @@ function arcPatch() {
     esac
   fi
 
+  writeConfigKey "arc.builddone" "false" "${USER_CONFIG_FILE}"
+  BUILDDONE="$(readConfigKey "arc.builddone" "${USER_CONFIG_FILE}")"
   ARC_PATCH="$(readConfigKey "arc.patch" "${USER_CONFIG_FILE}")"
   arcSettings
 }
@@ -972,7 +976,7 @@ function modulesMenu() {
       MSG+="For example: \Z4evbug,cdc_ether\Zn\n"
       while true; do
         modblacklist="$(readConfigKey "modblacklist" "${USER_CONFIG_FILE}")"
-        dialog --backtitle "$(backtitle)" --title "Modules" \
+        dialog --backtitle "$(backtitle)" --title "Modules" --colors \
           --inputbox "${MSG}" 12 70 "${modblacklist}" \
           2>"${TMP_PATH}/resp"
         [ $? -ne 0 ] && break
@@ -1402,7 +1406,7 @@ function backupMenu() {
         mkdir -p "${TMP_PATH}/mdX"
         for I in ${DSMROOTS}; do
           #fixDSMRootPart "${I}"
-          T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+          T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
           mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
           [ $? -ne 0 ] && continue
           MODEL=""
@@ -2184,7 +2188,7 @@ function downgradeMenu() {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       [ -f "${TMP_PATH}/mdX/etc/VERSION" ] && rm -f "${TMP_PATH}/mdX/etc/VERSION" >/dev/null
@@ -2213,7 +2217,7 @@ function resetPassword() {
   mkdir -p "${TMP_PATH}/mdX"
   for I in ${DSMROOTS}; do
     #fixDSMRootPart "${I}"
-    T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+    T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
     mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
     [ $? -ne 0 ] && continue
     if [ -f "${TMP_PATH}/mdX/etc/shadow" ]; then
@@ -2258,12 +2262,13 @@ function resetPassword() {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       sed -i "s|^${USER}:[^:]*|${USER}:${NEWPASSWD}|" "${TMP_PATH}/mdX/etc/shadow"
       sed -i "/^${USER}:/ s/^\(${USER}:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:\)[^:]*:/\1:/" "${TMP_PATH}/mdX/etc/shadow"
       sed -i "s|status=on|status=off|g" "${TMP_PATH}/mdX/usr/syno/etc/packages/SecureSignIn/preference/${USER}/method.config" 2>/dev/null
+      sed -i "s|list=*$|list=|; s|type=*$|type=none|" "${TMP_PATH}/mdX/usr/syno/etc/packages/SecureSignIn/secure_signin.conf" 2>/dev/null
       sync
       umount "${TMP_PATH}/mdX"
     done
@@ -2295,7 +2300,7 @@ function addNewDSMUser() {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       mkdir -p "${TMP_PATH}/mdX/usr/arc/once.d"
@@ -2495,7 +2500,7 @@ function forceEnableDSMTelnetSSH() {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       mkdir -p "${TMP_PATH}/mdX/usr/arc/once.d"
@@ -2539,7 +2544,7 @@ function removeBlockIPDB {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       rm -f "${TMP_PATH}/mdX/etc/synoautoblock.db"
@@ -2571,7 +2576,7 @@ function disablescheduledTasks {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       if [ -f "${TMP_PATH}/mdX/usr/syno/etc/esynoscheduler/esynoscheduler.db" ]; then
@@ -2814,7 +2819,7 @@ function greplogs() {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       mkdir -p "${TMP_PATH}/logs/md0/log"
@@ -2984,7 +2989,7 @@ function resetDSMNetwork {
     mkdir -p "${TMP_PATH}/mdX"
     for I in ${DSMROOTS}; do
       #fixDSMRootPart "${I}"
-      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null)"
+      T="$(blkid -o value -s TYPE "${I}" 2>/dev/null | sed 's/linux_raid_member/ext4/')"
       mount -t "${T:-ext4}" "${I}" "${TMP_PATH}/mdX"
       [ $? -ne 0 ] && continue
       rm -f "${TMP_PATH}/mdX/etc.defaults/sysconfig/network-scripts/ifcfg-bond"* "${TMP_PATH}/mdX/etc.defaults/sysconfig/network-scripts/ifcfg-eth"*
@@ -3590,10 +3595,27 @@ function getdiskinfo() {
 ###############################################################################
 # Get Network Info
 function getnetinfo() {
+  BOOTIPWAIT=3
+  IPCON=""
   ETHX="$(find /sys/class/net/ -mindepth 1 -maxdepth 1 -name 'eth*' -exec basename {} \; | sort)"
   for N in ${ETHX}; do
-    IPCON="$(getIP "${N}")"
-    [ -n "${IPCON}" ] && break
+    COUNT=0
+    while true; do
+      CARRIER=$(cat "/sys/class/net/${N}/carrier" 2>/dev/null)
+      if [ "${CARRIER}" = "0" ]; then
+        break
+      elif [ -z "${CARRIER}" ]; then
+        break
+      fi
+      COUNT=$((COUNT + 1))
+      IP="$(getIP "${N}")"
+      if [ -n "${IP}" ]; then
+        if ! echo "${IP}" | grep -q "^169\.254\."; then
+          IPCON="${IP}"
+        fi
+        break
+      fi
+    done
   done
   IPCON="${IPCON:-noip}"
 }
